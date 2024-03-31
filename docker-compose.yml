@@ -1,0 +1,72 @@
+version: "3"
+
+x-restart-policy: &restart_policy
+  restart: unless-stopped
+
+x-logging: &logging
+  logging:
+    driver: "json-file"
+    options:
+      max-size: "10m"
+      max-file: "2"
+
+x-healthcheck: &healthcheck
+  interval: 30s
+  start_period: 90s
+  timeout: 20s
+  retries: 3
+
+services:
+  db:
+    <<: [*restart_policy, *logging]
+    image: postgres:15-alpine
+    volumes:
+      - app-db-data:/var/lib/postgresql/data/
+    networks:
+      - db
+    environment:
+      - PGDATA=/var/lib/postgresql/data/pgdata
+      - POSTGRES_USER=${POSTGRES__USER}
+      - POSTGRES_PASSWORD=${POSTGRES__PASSWORD}
+      - POSTGRES_DB=${POSTGRES__DB}
+      - POSTGRES_HOST_AUTH_METHOD=scram-sha-256
+      - POSTGRES_INITDB_ARGS=--auth-host=scram-sha-256 --auth-local=scram-sha-256
+    expose:
+      - 5432
+    ports:
+      - 5432:5432
+    healthcheck:
+      <<: *healthcheck
+      test:
+        [
+          "CMD-SHELL",
+          "sh -c 'pg_isready -U ${POSTGRES__USER} -d ${POSTGRES__DB}'",
+        ]
+
+  pgadmin:
+    <<: [*restart_policy, *logging]
+    image: dpage/pgadmin4:7
+    networks:
+      - db
+    depends_on:
+      - db
+    expose:
+      - 5050
+    ports:
+      - 5050:5050
+    environment:
+      - PGADMIN_LISTEN_PORT=5050
+      - PGADMIN_DEFAULT_EMAIL=admin@gmail.com
+      - PGADMIN_DEFAULT_PASSWORD=admin
+    volumes:
+      - app-pgadmin-data:/var/lib/pgadmin
+    healthcheck:
+      <<: *healthcheck
+      test: ["CMD", "wget", "-O", "-", "http://localhost:80/misc/ping"]
+
+volumes:
+  app-db-data:
+  app-pgadmin-data:
+
+networks:
+  db:

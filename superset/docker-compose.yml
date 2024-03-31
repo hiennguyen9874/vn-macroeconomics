@@ -1,0 +1,98 @@
+version: "3.7"
+
+x-restart-policy: &restart_policy
+  restart: unless-stopped
+
+x-logging: &logging
+  logging:
+    driver: "json-file"
+    options:
+      max-size: "10m"
+      max-file: "2"
+
+x-superset-defaults: &superset_defaults
+  <<: [*restart_policy, *logging]
+  build:
+    context: superset
+    dockerfile: Dockerfile
+    args:
+      SUPERSET_VERSION: "3.0.0-py310"
+  user: "root"
+  env_file: ./superset/docker/.env-non-dev
+  depends_on:
+    - superset-redis
+    - superset-db
+    - db
+  volumes:
+    - app-superset-home-data:/app/superset_home
+    - ./superset/docker:/app/docker
+  networks:
+    - superset
+    - db
+
+services:
+  superset-redis:
+    <<: [*restart_policy, *logging]
+    image: redis:6.2.6-alpine
+    volumes:
+      - app-superset-redis-data:/data
+    networks:
+      - superset
+
+  superset-db:
+    <<: [*restart_policy, *logging]
+    image: postgres:15-alpine
+    volumes:
+      - ./superset/docker/docker-entrypoint-initdb.d:/docker-entrypoint-initdb.d
+      - app-superset-db-data:/var/lib/postgresql/data
+    env_file: ./superset/docker/.env-non-dev
+    networks:
+      - superset
+
+  superset:
+    <<: [*superset_defaults]
+    # command: ["/app/docker/docker-bootstrap.sh", "app-gunicorn"]
+    command: >
+      bash -c "chmod +x /app/docker/docker-bootstrap.sh
+      && /app/docker/docker-bootstrap.sh app-gunicorn"
+    ports:
+      - ${APP__SUPERSET_PORT}:8088
+    expose:
+      - 8088
+
+  superset-init:
+    <<: [*superset_defaults]
+    command: >
+      bash -c "chmod +x /app/docker/docker-init.sh
+      && /app/docker/docker-init.sh"
+    healthcheck:
+      disable: true
+    restart: "no"
+
+  superset-worker:
+    <<: [*superset_defaults]
+    command: >
+      bash -c "chmod +x /app/docker/docker-bootstrap.sh
+      && /app/docker/docker-bootstrap.sh worker"
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "celery -A superset.tasks.celery_app:app inspect ping -d celery@$$HOSTNAME",
+        ]
+
+  superset-worker-beat:
+    <<: [*superset_defaults]
+    command: >
+      bash -c "chmod +x /app/docker/docker-bootstrap.sh
+      && /app/docker/docker-bootstrap.sh beat"
+    healthcheck:
+      disable: true
+
+volumes:
+  app-superset-redis-data:
+  app-superset-db-data:
+  app-superset-home-data:
+
+networks:
+  superset:
