@@ -18,7 +18,7 @@
 - Chạy lệnh: `docker compose -f docker-compose.yml -f superset/docker-compose.yml up -d`
 - Cập nhật ip và port của db trong file [import.ipynb](./import.ipynb)
 - Chạy file [import.ipynb](./import.ipynb) để tạo dữ liệu trong db từ file csv trong thư mục [./csv](./csv/)
-- Đăng nhập vào superset bằng link [localhost:10302](http://localhost:10302)
+- Đăng nhập vào superset bằng link [localhost:10302](http://localhost:10302), user/password: `admin`/`admin`
 - Import superset dashboard từ file [export/dashboard_export_20240407T035748.zip](./export/dashboard_export_20240407T035748.zip)
 
 ### Một số hình ảnh
